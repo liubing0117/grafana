@@ -44,6 +44,12 @@ Then you can override them using:
 
 <hr />
 
+## instance_name
+Set the name of the grafana-server instance. Used in logging and internal metrics and in
+clustering info. Defaults to: `${HOSTNAME}`, which will be replaced with
+environment variable `HOSTNAME`, if that is empty or does not exist Grafana will try to use
+system calls to get the machine name.
+
 ## [paths]
 
 ### data
@@ -70,7 +76,7 @@ The IP address to bind to. If empty will bind to all interfaces
 The port to bind to, defaults to `3000`. To use port 80 you need to
 either give the Grafana binary permission for example:
 
-    $ sudo setcap 'cap_net_bind_service=+ep' /opt/grafana/current/grafana
+    $ sudo setcap 'cap_net_bind_service=+ep' /usr/sbin/grafana-server
 
 Or redirect port 80 to the Grafana port using:
 
@@ -81,6 +87,8 @@ Another way is put a webserver like Nginx or Apache in front of Grafana and have
 ### protocol
 
 `http` or `https`
+
+> **Note** Grafana versions earlier than 3.0 are vulnerable to [POODLE](https://en.wikipedia.org/wiki/POODLE). So we strongly recommend to upgrade to 3.x or use a reverse proxy for ssl termination.
 
 ### domain
 
@@ -156,7 +164,24 @@ The database user's password (not applicable for `sqlite3`).
 
 ### ssl_mode
 
-For `postgres` only, either `disable`, `require` or `verify-full`.
+For Postgres, use either `disable`, `require` or `verify-full`.
+For MySQL, use either `true`, `false`, or `skip-verify`.
+
+### ca_cert_path
+
+(MySQL only) The path to the CA certificate to use. On many linux systems, certs can be found in `/etc/ssl/certs`.
+
+### client_key_path
+
+(MySQL only) The path to the client key. Only if server requires client authentication.
+
+### client_cert_path
+
+(MySQL only) The path to the client cert. Only if server requires client authentication.
+
+### server_cert_name
+
+(MySQL only) The common name field of the certificate used by the `mysql` server. Not necessary if `ssl_mode` is set to `skip-verify`.
 
 <hr />
 
@@ -169,7 +194,7 @@ Defaults to `admin`.
 
 ### admin_password
 
-The password of the default Grafana admin.  Defaults to `admin`.
+The password of the default Grafana admin. Set once on first-run.  Defaults to `admin`.
 
 ### login_remember_days
 
@@ -209,7 +234,7 @@ organization to be created for that new user.
 
 The role new users will be assigned for the main organization (if the
 above setting is set to true).  Defaults to `Viewer`, other valid
-options are `Admin` and `Editor`.
+options are `Admin` and `Editor` and `Read-Only Editor`.
 
 <hr>
 
@@ -251,8 +276,10 @@ example:
     scopes = user:email
     auth_url = https://github.com/login/oauth/authorize
     token_url = https://github.com/login/oauth/access_token
+    api_url = https://api.github.com/user
     allow_sign_up = false
     team_ids =
+    allowed_organizations =
 
 Restart the Grafana back-end. You should now see a GitHub login button
 on the login page. You can now login or sign up with your GitHub
@@ -279,6 +306,24 @@ Grafana instance. For example:
     auth_url = https://github.com/login/oauth/authorize
     token_url = https://github.com/login/oauth/access_token
     allow_sign_up = false
+
+### allowed_organizations
+
+Require an active organization membership for at least one of the given
+organizations on GitHub. If the authenticated user isn't a member of at least
+one of the organizations they will not be able to register or authenticate with
+your Grafana instance. For example
+
+    [auth.github]
+    enabled = true
+    client_id = YOUR_GITHUB_APP_CLIENT_ID
+    client_secret = YOUR_GITHUB_APP_CLIENT_SECRET
+    scopes = user:email,read:org
+    auth_url = https://github.com/login/oauth/authorize
+    token_url = https://github.com/login/oauth/access_token
+    allow_sign_up = false
+    # space-delimited organization names
+    allowed_organizations = github google
 
 <hr>
 
@@ -314,6 +359,23 @@ You may allow users to sign-up via Google authentication by setting the
 `allow_sign_up` option to `true`. When this option is set to `true`, any
 user successfully authenticating via Google authentication will be
 automatically signed up.
+
+## [auth.generic_oauth]
+
+This option could be used if have your own oauth service.
+
+This callback URL must match the full HTTP address that you use in your
+browser to access Grafana, but with the prefix path of `/login/generic_oauth`.
+
+    [auth.generic_oauth]
+    enabled = true
+    client_id = YOUR_APP_CLIENT_ID
+    client_secret = YOUR_APP_CLIENT_SECRET
+    scopes =
+    auth_url =
+    token_url =
+    allowed_domains = mycompany.com mycompany.org
+    allow_sign_up = false
 
 <hr>
 
@@ -355,7 +417,7 @@ Set to `true` to enable auto sign up of users who do not exist in Grafana DB. De
 
 ### provider
 
-Valid values are `memory`, `file`, `mysql`, `postgres`, `memcache`. Default is `file`.
+Valid values are `memory`, `file`, `mysql`, `postgres`, `memcache` or `redis`. Default is `file`.
 
 ### provider_config
 
@@ -366,6 +428,7 @@ session provider you have configured.
 - **mysql:** go-sql-driver/mysql dsn config string, e.g. `user:password@tcp(127.0.0.1:3306)/database_name`
 - **postgres:** ex:  user=a password=b host=localhost port=5432 dbname=c sslmode=disable
 - **memcache:** ex:  127.0.0.1:11211
+- **redis:** ex: `addr=127.0.0.1:6379,pool_size=100,prefix=grafana`
 
 If you use MySQL or Postgres as the session store you need to create the
 session table manually.
@@ -397,10 +460,10 @@ How long sessions lasts in seconds. Defaults to `86400` (24 hours).
 
 ### reporting_enabled
 
-When enabled Grafana will send anonymous usage statistics to 
+When enabled Grafana will send anonymous usage statistics to
 `stats.grafana.org`. No IP addresses are being tracked, only simple counters to
 track running instances, versions, dashboard & error counts. It is very helpful
-to us, so please leave this enabled. Counters are sent every 24 hours. Default 
+to us, so please leave this enabled. Counters are sent every 24 hours. Default
 value is `true`.
 
 ### google_analytics_ua_id
@@ -420,3 +483,45 @@ Grafana backend index those json dashboards which will make them appear in regul
 
 ### path
 The full path to a directory containing your json dashboards.
+
+## [log]
+
+### mode
+Either "console", "file", "syslog". Default is console and  file
+Use space to separate multiple modes, e.g. "console file"
+
+### level
+Either "debug", "info", "warn", "error", "critical", default is "info"
+
+### filter
+optional settings to set different levels for specific loggers.
+Ex `filters = sqlstore:debug`
+
+## [metrics]
+
+### enabled
+Enable metrics reporting. defaults true. Available via HTTP API `/api/metrics`.
+
+### interval_seconds
+
+Flush/Write interval when sending metrics to external TSDB. Defaults to 10s.
+
+## [metrics.graphite]
+Include this section if you want to send internal Grafana metrics to Graphite.
+
+### address
+Format `<Hostname or ip>`:port
+
+### prefix
+Graphite metric prefix. Defaults to `prod.grafana.%(instance_name)s.`
+
+## [snapshots]
+
+### external_enabled
+Set to false to disable external snapshot publish endpoint (default true)
+
+### external_snapshot_url
+Set root url to a Grafana instance where you want to publish external snapshots (defaults to https://snapshots-origin.raintank.io)
+
+### external_snapshot_name
+Set name for external snapshot button. Defaults to `Publish to snapshot.raintank.io`

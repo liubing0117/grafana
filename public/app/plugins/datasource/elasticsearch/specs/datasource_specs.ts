@@ -1,35 +1,41 @@
-
-import "../datasource";
+import _ from 'lodash';
 import {describe, beforeEach, it, sinon, expect, angularMocks} from 'test/lib/common';
 import moment from 'moment';
 import angular from 'angular';
 import helpers from 'test/specs/helpers';
+import {ElasticDatasource} from "../datasource";
 
 describe('ElasticDatasource', function() {
   var ctx = new helpers.ServiceTestContext();
+  var instanceSettings: any = {jsonData: {}};
 
   beforeEach(angularMocks.module('grafana.core'));
   beforeEach(angularMocks.module('grafana.services'));
   beforeEach(ctx.providePhase(['templateSrv', 'backendSrv']));
-  beforeEach(ctx.createService('ElasticDatasource'));
-  beforeEach(function() {
-    ctx.ds = new ctx.service({jsonData: {}});
-  });
+
+  beforeEach(angularMocks.inject(function($q, $rootScope, $httpBackend, $injector) {
+    ctx.$q = $q;
+    ctx.$httpBackend =  $httpBackend;
+    ctx.$rootScope = $rootScope;
+    ctx.$injector = $injector;
+    $httpBackend.when('GET', /\.html$/).respond('');
+  }));
+
+  function createDatasource(instanceSettings) {
+    instanceSettings.jsonData = instanceSettings.jsonData || {};
+    ctx.ds = ctx.$injector.instantiate(ElasticDatasource, {instanceSettings: instanceSettings});
+  }
 
   describe('When testing datasource with index pattern', function() {
     beforeEach(function() {
-      ctx.ds = new ctx.service({
-        url: 'http://es.com',
-        index: '[asd-]YYYY.MM.DD',
-        jsonData: { interval: 'Daily' }
-      });
+      createDatasource({url: 'http://es.com', index: '[asd-]YYYY.MM.DD', jsonData: {interval: 'Daily'}});
     });
 
     it('should translate index pattern to current day', function() {
       var requestOptions;
       ctx.backendSrv.datasourceRequest = function(options) {
         requestOptions = options;
-        return ctx.$q.when({});
+        return ctx.$q.when({data: {}});
       };
 
       ctx.ds.testDatasource();
@@ -44,11 +50,7 @@ describe('ElasticDatasource', function() {
     var requestOptions, parts, header;
 
     beforeEach(function() {
-      ctx.ds = new ctx.service({
-        url: 'http://es.com',
-        index: '[asd-]YYYY.MM.DD',
-        jsonData: { interval: 'Daily' }
-      });
+      createDatasource({url: 'http://es.com', index: '[asd-]YYYY.MM.DD', jsonData: {interval: 'Daily'}});
 
       ctx.backendSrv.datasourceRequest = function(options) {
         requestOptions = options;
@@ -57,8 +59,8 @@ describe('ElasticDatasource', function() {
 
       ctx.ds.query({
         range: {
-          from: moment([2015, 4, 30, 10]),
-          to: moment([2015, 5, 1, 10])
+          from: moment.utc([2015, 4, 30, 10]),
+          to: moment.utc([2015, 5, 1, 10])
         },
         targets: [{ bucketAggs: [], metrics: [], query: 'escape\\:test' }]
       });
@@ -83,7 +85,7 @@ describe('ElasticDatasource', function() {
     var requestOptions, parts, header;
 
     beforeEach(function() {
-      ctx.ds = new ctx.service({url: 'http://es.com', index: 'test', jsonData: {}});
+      createDatasource({url: 'http://es.com', index: 'test'});
 
       ctx.backendSrv.datasourceRequest = function(options) {
         requestOptions = options;
@@ -107,6 +109,103 @@ describe('ElasticDatasource', function() {
     it('should set size', function() {
       var body = angular.fromJson(parts[1]);
       expect(body.size).to.be(500);
+    });
+  });
+
+  describe('When getting fields', function() {
+    var requestOptions, parts, header;
+
+    beforeEach(function() {
+      createDatasource({url: 'http://es.com', index: 'metricbeat'});
+
+      ctx.backendSrv.datasourceRequest = function(options) {
+        requestOptions = options;
+        return ctx.$q.when({data: {
+          metricbeat: {
+            mappings: {
+              metricsets: {
+                _all: {},
+                properties: {
+                  '@timestamp': {type: 'date'},
+                  beat: {
+                    properties: {
+                      name: {type: 'string'},
+                      hostname: {type: 'string'},
+                    }
+                  },
+                  system: {
+                    properties: {
+                      cpu: {
+                        properties: {
+                          system: {type: 'float'},
+                          user: {type: 'float'},
+                        }
+                      },
+                      process: {
+                        properties: {
+                          cpu: {
+                            properties: {
+                              total: {type: 'float'}
+                            }
+                          },
+                          name: {type: 'string'},
+                        }
+                      },
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }});
+      };
+    });
+
+    it('should return nested fields', function() {
+      ctx.ds.getFields({
+        find: 'fields',
+        query: '*'
+      }).then((fieldObjects) => {
+        var fields = _.map(fieldObjects, 'text');
+        expect(fields).to.eql([
+          '@timestamp',
+          'beat.name',
+          'beat.hostname',
+          'system.cpu.system',
+          'system.cpu.user',
+          'system.process.cpu.total',
+          'system.process.name'
+        ]);
+      });
+      ctx.$rootScope.$apply();
+    });
+
+    it('should return fields related to query type', function() {
+      ctx.ds.getFields({
+        find: 'fields',
+        query: '*',
+        type: 'number'
+      }).then((fieldObjects) => {
+        var fields = _.map(fieldObjects, 'text');
+        expect(fields).to.eql([
+          'system.cpu.system',
+          'system.cpu.user',
+          'system.process.cpu.total'
+        ]);
+      });
+
+      ctx.ds.getFields({
+        find: 'fields',
+        query: '*',
+        type: 'date'
+      }).then((fieldObjects) => {
+        var fields = _.map(fieldObjects, 'text');
+        expect(fields).to.eql([
+          '@timestamp'
+        ]);
+      });
+
+      ctx.$rootScope.$apply();
     });
   });
 

@@ -1,17 +1,20 @@
-///<reference path="lodash/lodash.d.ts" />
-///<reference path="../../vendor/npm/angular2/typings/tsd.d.ts" />
-///<reference path="../../vendor/npm/angular2/manual_typings/globals.d.ts" />
-
-// dummy modules
-declare module 'app/core/config' {
-  var config : any;
-  export = config;
-}
+/// <reference path="./es6-shim/es6-shim.d.ts" />
 
 declare var System: any;
 
+// dummy modules
+declare module 'app/core/config' {
+  var config: any;
+  export default config;
+}
+
+declare module 'lodash' {
+  var lodash: any;
+  export default lodash;
+}
+
 declare module 'moment' {
-  var moment : any;
+  var moment: any;
   export default moment;
 }
 
@@ -27,35 +30,25 @@ declare module 'jquery' {
 
 declare module 'app/core/utils/kbn' {
   var kbn: any;
-  export = kbn;
+  export default kbn;
 }
 
 declare module 'app/core/store' {
-  var store : any;
-  export = store;
+  var store: any;
+  export default store;
 }
 
-declare module 'angular-route' {
-  var kbn : any;
-  export = kbn;
+declare module 'tether' {
+  var config: any;
+  export default config;
 }
 
-declare module 'angular-sanitize' {
-  var kbn : any;
-  export = kbn;
+declare module 'tether-drop' {
+  var config: any;
+  export default config;
 }
 
-declare module 'bootstrap' {
-  var kbn : any;
-  export = kbn;
-}
-
-declare module 'angular-strap' {
-  var kbn : any;
-  export = kbn;
-}
-
-declare module 'angular-dragdrop' {
-  var kbn : any;
-  export = kbn;
+declare module 'eventemitter3' {
+  var config: any;
+  export default config;
 }

@@ -30,11 +30,6 @@ function (angular, _, config) {
 
     $scope.toggleRow = function(row) {
       row.collapse = row.collapse ? false : true;
-      if (!row.collapse) {
-        $timeout(function() {
-          $scope.$broadcast('render');
-        });
-      }
     };
 
     $scope.addPanel = function(panel) {
@@ -52,12 +47,20 @@ function (angular, _, config) {
       }
 
       $scope.appEvent('confirm-modal', {
-        title: 'Are you sure you want to delete this row?',
+        title: 'Delete',
+        text: 'Are you sure you want to delete this row?',
         icon: 'fa-trash',
         yesText: 'Delete',
         onConfirm: function() {
           delete_row();
         }
+      });
+    };
+
+    $scope.editRow = function() {
+      $scope.appEvent('show-dash-editor', {
+        src: 'public/app/partials/roweditor.html',
+        scope: $scope.$new()
       });
     };
 
@@ -116,36 +119,7 @@ function (angular, _, config) {
       $scope.$broadcast('render');
     };
 
-    $scope.removePanel = function(panel) {
-      $scope.appEvent('confirm-modal', {
-        title: 'Are you sure you want to remove this panel?',
-        icon: 'fa-trash',
-        yesText: 'Delete',
-        onConfirm: function() {
-          $scope.row.panels = _.without($scope.row.panels, panel);
-        }
-      });
-    };
-
-    $scope.updatePanelSpan = function(panel, span) {
-      panel.span = Math.min(Math.max(Math.floor(panel.span + span), 1), 12);
-    };
-
-    $scope.replacePanel = function(newPanel, oldPanel) {
-      var row = $scope.row;
-      var index = _.indexOf(row.panels, oldPanel);
-      row.panels.splice(index, 1);
-
-      // adding it back needs to be done in next digest
-      $timeout(function() {
-        newPanel.id = oldPanel.id;
-        newPanel.span = oldPanel.span;
-        row.panels.splice(index, 0, newPanel);
-      });
-    };
-
     $scope.init();
-
   });
 
   module.directive('rowHeight', function() {
@@ -155,7 +129,7 @@ function (angular, _, config) {
       });
 
       scope.onAppEvent('panel-fullscreen-enter', function(evt, info) {
-        var hasPanel = _.findWhere(scope.row.panels, {id: info.panelId});
+        var hasPanel = _.find(scope.row.panels, {id: info.panelId});
         if (!hasPanel) {
           element.hide();
         }
@@ -168,12 +142,19 @@ function (angular, _, config) {
   });
 
   module.directive('panelWidth', function() {
+
     return function(scope, element) {
+      var fullscreen = false;
+
       function updateWidth() {
-        element[0].style.width = ((scope.panel.span / 1.2) * 10) + '%';
+        if (!fullscreen) {
+          element[0].style.width = ((scope.panel.span / 1.2) * 10) + '%';
+        }
       }
 
       scope.onAppEvent('panel-fullscreen-enter', function(evt, info) {
+        fullscreen = true;
+
         if (scope.panel.id !== info.panelId) {
           element.hide();
         } else {
@@ -182,14 +163,20 @@ function (angular, _, config) {
       });
 
       scope.onAppEvent('panel-fullscreen-exit', function(evt, info) {
+        fullscreen = false;
+
         if (scope.panel.id !== info.panelId) {
           element.show();
-        } else {
-          updateWidth();
         }
+
+        updateWidth();
       });
 
       scope.$watch('panel.span', updateWidth);
+
+      if (fullscreen) {
+        element.hide();
+      }
     };
   });
 

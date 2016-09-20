@@ -1,14 +1,9 @@
 ///<reference path="../../headers/common.d.ts" />
 
-import _ = require('lodash');
+import _ from 'lodash';
 import moment from 'moment';
 
 var units = ['y', 'M', 'w', 'd', 'h', 'm', 's'];
-var unitsAsc = _.sortBy(units, function (unit) {
-  return moment.duration(1, unit).valueOf();
-});
-
-var unitsDesc = unitsAsc.reverse();
 
 export function parse(text, roundUp?) {
   if (!text) { return undefined; }
@@ -33,7 +28,7 @@ export function parse(text, roundUp?) {
       mathString = text.substring(index + 2);
     }
     // We're going to just require ISO8601 timestamps, k?
-    time = moment(parseString);
+    time = moment(parseString, moment.ISO_8601);
   }
 
   if (!mathString.length) {
@@ -98,14 +93,13 @@ export function parseDateMath(mathString, time, roundUp?) {
     }
     unit = mathString.charAt(i++);
 
-    if (!_.contains(units, unit)) {
+    if (!_.includes(units, unit)) {
       return undefined;
     } else {
       if (type === 0) {
         if (roundUp) {
           dateTime.endOf(unit);
-        }
-        else {
+        } else {
           dateTime.startOf(unit);
         }
       } else if (type === 1) {

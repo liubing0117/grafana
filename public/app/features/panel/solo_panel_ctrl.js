@@ -17,11 +17,12 @@ function (angular, $) {
       var params = $location.search();
       panelId = parseInt(params.panelId);
 
+      $scope.onAppEvent("dashboard-initialized", $scope.initPanelScope);
+
       dashboardLoaderSrv.loadDashboard($routeParams.type, $routeParams.slug).then(function(result) {
+        result.meta.soloMode = true;
         $scope.initDashboard(result, $scope);
       });
-
-      $scope.onAppEvent("dashboard-loaded", $scope.initPanelScope);
     };
 
     $scope.initPanelScope = function() {
@@ -39,13 +40,8 @@ function (angular, $) {
       }
 
       $scope.panel.span = 12;
-      $scope.dashboardViewState = {registerPanel: function() { }, state: {}};
     };
 
-    if (!$scope.skipAutoInit) {
-      $scope.init();
-    }
-
+    $scope.init();
   });
-
 });

@@ -102,7 +102,6 @@ function(angular, _) {
         value.current = null;
         value.options = null;
       });
-
     };
 
     p.hasChanges = function() {
@@ -112,8 +111,8 @@ function(angular, _) {
       this.cleanDashboardFromIgnoredChanges(current);
       this.cleanDashboardFromIgnoredChanges(original);
 
-      var currentTimepicker = _.findWhere(current.nav, { type: 'timepicker' });
-      var originalTimepicker = _.findWhere(original.nav, { type: 'timepicker' });
+      var currentTimepicker = _.find(current.nav, { type: 'timepicker' });
+      var originalTimepicker = _.find(original.nav, { type: 'timepicker' });
 
       if (currentTimepicker && originalTimepicker) {
         currentTimepicker.now = originalTimepicker.now;
@@ -139,8 +138,8 @@ function(angular, _) {
       };
 
       $rootScope.appEvent('show-modal', {
-        src: './app/partials/unsaved-changes.html',
-        modalClass: 'modal-no-header confirm-modal',
+        src: 'public/app/partials/unsaved-changes.html',
+        modalClass: 'confirm-modal',
         scope: modalScope,
       });
     };
